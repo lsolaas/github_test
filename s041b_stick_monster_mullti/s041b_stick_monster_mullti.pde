@@ -1,6 +1,6 @@
 import processing.pdf.*;
 
-
+// un cambio
 PVector changeRate = new PVector(0.03, 0.003, 0.01);
 PVector size = new PVector(30, 120);
 
