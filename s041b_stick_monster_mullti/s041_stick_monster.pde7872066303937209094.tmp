@@ -1,0 +1,306 @@
+import processing.pdf.*;
+
+int nLevels = 7;
+int nSticks = 8;
+PVector changeRate = new PVector(0.03, 0.002, 0.01);
+boolean mirror = true;
+int cols[] = {#A6293B, #F2AE03, #FFDD5E, #B0C727, #6B9C95, #ADABFF, #A15785};
+//int cols[] = {0, #222222, #444444, #666666, #888888, #AAAAAA, #DDDDDD, #FFFFFF};
+//int cols[] = {#000000, #FFFFFF, #000000, #FFFFFF, #000000, #FFFFFF, #000000, #FFFFFF};
+
+String out_folder = "C:/Leo/1_work/capturas/processing/s041_stick_monster/";
+
+RootStick root;
+Level[] levels;
+int selected = -1;
+int dragging = -1;
+boolean go = true;
+boolean changeVar = false;
+boolean capture = false;
+boolean pdf = false;
+boolean makeMovie = false;
+int t, sd;
+
+void setup() {
+  size(1280, 900, P2D);
+  
+  strokeCap(MITER);
+  rectMode(CENTER);
+  background(255);
+  
+  /*root = new Stick(0, null);
+  root.a.set(width/4*3, height/6);
+  root.z.set(width/4*3, height/6*5);*/
+  root = new RootStick( new PVector(width/4*3, height/6), new PVector(width/4*3, height/6*5) );
+  
+  levels = new Level[nLevels];
+  PVector size = new PVector(120, 240);
+  for(int l=0; l<nLevels; l++){
+    levels[l] = new Level(l, nSticks, size);
+    levels[l].col = color(cols[l], 92);
+  }
+  
+  
+  
+  randomize();
+  //loadData("C:/Leo/1_work/capturas/processing/s041_stick_monster/s041_170328.174908.json");
+  //go = false;
+  
+  /*for(int l=0; l<nLevels; l++){
+    levels[l].slot = l == 0 ? 0 : 0.7;
+    levels[l].vslot = l == 0 ? 1./float(nSticks) : 0;
+    levels[l].peg = 0.8;
+    levels[l].vpeg = 0;
+    levels[l].rot = PI/6;//l%2 == 0 ? PI/3*2 : -PI/3*2;
+    levels[l].vrot = -0.03*l;
+  }*/
+
+}
+
+void randomize() {
+  for(int l=0; l<nLevels; l++){
+    levels[l].slot = l == 0 ? 0 : random(1);
+    levels[l].vslot = l == 0 ? 1.0/float(nSticks) : random(-0.1, 0.1);
+    levels[l].peg = random(1);
+    levels[l].vpeg = random(-0.1, 0.1);
+    levels[l].rot = random(PI)-PI/2;
+    levels[l].vrot = random(-0.2, 0.2);
+  }
+  
+  sd = int(random(999999));
+  noiseSeed(sd);
+  println("seed", sd);
+  background(255);
+  t = 0;
+}
+
+void draw() {
+  //if(go) {
+    if(pdf) {
+      beginRecord(PDF, out_folder + makeName() + ".pdf");
+    }
+    
+    if(changeVar) background(255, 255, 240);
+    else background(255);
+    
+    //stroke(255, 0, 0);
+    //line(25, 0, 25, 100);
+    
+    //root.paint();
+    
+    for(int l=0; l<nLevels; l++){
+      if(go){
+        if(l > 0) levels[l].slot = noise(0, l*changeRate.x, t*changeRate.y);
+        if(l > 0) levels[l].vslot = noise(1, l*changeRate.x, t*changeRate.y) * 0.3 - 0.15;
+        levels[l].peg = noise(2, l*changeRate.x, t*changeRate.y);
+        levels[l].vpeg = noise(3, l*changeRate.x, t*changeRate.y) * 0.3 - 0.15;
+        levels[l].rot = noise(4, l*changeRate.x, t*changeRate.y) * TWO_PI - PI;
+        levels[l].vrot = noise(5, l*changeRate.x, t*changeRate.y) * 0.6 - 0.3;
+      }
+      
+      levels[l].step();
+      levels[l].paint();
+    }
+    
+    if(key == ';') root.paint();
+    
+    /*if(mirror){
+      translate(float(width), 0);
+      scale(-1, 1);
+      for(int l=0; l<nLevels; l++){
+        levels[l].paint();
+      }
+    }*/
+    
+    int sides = 3;
+    for(int s=1; s<sides; s++){
+      pushMatrix();
+      translate(width/2, height/2);
+      rotate(TWO_PI/float(sides) * s);
+      translate(-width/2, -height/2);
+      for(int l=0; l<nLevels; l++){
+        levels[l].paint();
+      }
+      popMatrix();
+    }
+    
+    
+    
+    if(go) t++;
+    
+    if(pdf) {
+      endRecord();
+      println("pdf captured");
+      pdf = false;
+    }
+  //}
+  
+  if(dragging > 0) {
+    if(dragging == 1) root.a.set(mouseX, mouseY);
+    else if(dragging == 2) root.z.set(mouseX, mouseY);
+    else if(dragging == 3) root.p1.set(mouseX, mouseY);
+    else if(dragging == 4) root.p2.set(mouseX, mouseY);
+  }
+  
+  if(capture){
+    save( out_folder + makeName() + ".jpg" );
+    //saveData();
+    println("capture saved");
+    capture = false;
+  }
+  
+  if(makeMovie){
+     saveFrame( out_folder + "movie2/sd"+ sd +"_#####.jpg" );
+  }
+  
+}
+
+void saveData() {
+  JSONObject o = new JSONObject();
+  
+  o.setInt("nLevels", nLevels);
+  o.setInt("nSticks", nSticks);
+  o.setBoolean("mirror", mirror);
+  
+  o.setJSONObject("root", root.getData());
+  
+  JSONArray ls = new JSONArray();
+  for(int i=0; i<nLevels; i++){
+    ls.setJSONObject(i, levels[i].getData());
+  }
+  o.setJSONArray("levels", ls);
+
+  saveJSONObject(o, out_folder + makeName() + ".json");
+}
+
+void loadData(String url) {
+  JSONObject o = loadJSONObject(url);
+  
+  JSONObject r = o.getJSONObject("root");
+  root.setData(r);
+  
+  JSONArray ls = o.getJSONArray("levels");
+  for(int i=0; i<ls.size(); i++) {
+    levels[i].setData(ls.getJSONObject(i));
+  }
+  
+  go = false;
+}
+
+void keyPressed(){
+  switch(key){
+    case ' ':
+      go = !go;
+      break;
+    case 's':
+      capture = true;
+      break;
+    case 'p':
+      pdf = true;
+      break;
+     case 'm':
+      if(makeMovie) {
+        makeMovie = false;
+        println("end capture at"+ t);
+      }else {
+        makeMovie = true;
+        println("start capture at"+ t);
+      }
+      break;
+    case 'b':
+      background(255);
+      break;
+    case 'r':
+      randomize();
+      break;
+    case 'l':
+      selected ++; selected %= nLevels + 1;
+      break;
+    case 'v':
+      changeVar = !changeVar;
+      break;
+    case ',':
+      if(selected >= 0 && selected < nLevels){
+        Level l = levels[selected];
+        if(changeVar) l.vrot += 0.01;
+        else l.rot += 0.1;
+        println("rot", l.rot, l.vrot);
+      }
+      break;
+    case '.':
+      if(selected >= 0 && selected < nLevels){
+        Level l = levels[selected];
+        if(changeVar) l.vrot -= 0.01;
+        else l.rot -= 0.1;
+        println("rot", l.rot, l.vrot);
+      }
+      break;
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+      levels[int(str(key))].visible = ! levels[int(str(key))].visible;
+      break;
+    case '+':
+      for(int l=0; l<nLevels; l++) levels[l].visible = true;
+      break;
+    case '-':
+      for(int l=0; l<nLevels; l++) levels[l].visible = false;
+      break;
+  }
+  
+  if (key == CODED) {
+    if (keyCode == UP) {
+      if(selected >= 0 && selected < nLevels){
+        Level l = levels[selected];
+        if(changeVar) l.vslot = min(l.vslot + 0.01, 0.2);
+        else l.slot = min(l.slot + 0.05, 1);
+        println("slot", l.slot, l.vslot);
+      }
+    } else if(keyCode == DOWN) {
+      if(selected >= 0 && selected < nLevels){
+        Level l = levels[selected];
+        if(changeVar) l.vslot = max(l.vslot - 0.01, -0.2);
+        else l.slot = max(l.slot - 0.05, 0);
+        println("slot", l.slot, l.vslot);
+      }
+    } else if(keyCode == LEFT) {
+      if(selected >= 0 && selected < nLevels){
+        Level l = levels[selected];
+        if(changeVar) l.vpeg = max(l.vpeg - 0.01, -0.2);
+        else l.peg = max(l.peg - 0.05, 0);
+        println("peg", l.peg, l.vpeg);
+      }
+    } else if(keyCode == RIGHT) {
+      if(selected >= 0 && selected < nLevels){
+        Level l = levels[selected];
+        if(changeVar) l.vpeg = min(l.vpeg + 0.01, 0.2);
+        else l.peg = min(l.peg + 0.05, 1);
+        println("peg", l.peg, l.vpeg);
+      }
+    }
+  }
+}
+
+void mousePressed() {
+  float r = 10;
+  if( dist(mouseX, mouseY, root.a.x, root.a.y) < r ) dragging = 1;
+  else if( dist(mouseX, mouseY, root.z.x, root.z.y) < r ) dragging = 2;
+  else if( dist(mouseX, mouseY, root.p1.x, root.p1.y) < r ) dragging = 3;
+  else if( dist(mouseX, mouseY, root.p2.x, root.p2.y) < r ) dragging = 4;
+}
+
+void mouseReleased() {
+  dragging = -1;
+}
+
+String makeName() {
+  String out = "s041_"+ str(year()).substring(2) + nf(month(), 2) + nf(day(), 2) +".";
+  out += nf(hour(), 2) + nf(minute(), 2) + nf(second(), 2);
+  //out += "_links"+ links.length +"_nodes"+ nid;
+
+  return out;
+}
